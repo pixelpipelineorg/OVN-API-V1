@@ -1,6 +1,9 @@
 ---
 title: Welcome to OVN API Specifications
 hidden: false
+icon: ⚙️
+link:
+  new_tab: false
 ---
 <Cards>
   {/* Edit the props below to customize these components */}
