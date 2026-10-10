@@ -1,0 +1,3024 @@
+openapi: 3.1.0
+info:
+  title: OVN API
+  version: 1.0.0-draft.3
+  summary: Read access to the OrthoForum Value Network directory and bundle catalog.
+  description: >
+    Two tiers. Directory tier: five read-only feeds (practices & locations,
+    providers,
+
+    procedures, specialties, bundles) plus a change feed and nightly snapshots.
+    No PHI;
+
+    no BAA required. Bundle pricing requires the `bundles:pricing` scope.
+
+    Referral tier: partners create referrals containing member PHI, exchange
+    secure
+
+    messages per referral, and upload attachments. Requires a signed BAA before
+    any
+
+    `referrals:*`, `messages:*` or `attachments:*` scope is granted. Every POST
+    requires
+
+    an `Idempotency-Key` header. Webhooks deliver referral-tier events with IDs
+    only.
+  contact:
+    name: OVN Support
+    email: help@orthoforumvaluenetwork.com
+servers:
+  - url: https://api.ovnapp.com/v1
+    description: Production
+  - url: https://sandbox-api.ovnapp.com/v1
+    description: Sandbox (synthetic data, reset weekly)
+security:
+  - oauth2:
+      - feeds:practices
+      - feeds:providers
+      - feeds:procedures
+      - feeds:specialties
+      - feeds:bundles
+      - feeds:changes
+tags:
+  - name: Referrals
+  - name: Messaging
+  - name: Practices & Locations
+  - name: Providers
+  - name: Procedures
+  - name: Specialties
+  - name: Bundles
+  - name: Sync
+paths:
+  /practices:
+    get:
+      tags:
+        - Practices & Locations
+      summary: List practices
+      operationId: listPractices
+      security:
+        - oauth2:
+            - feeds:practices
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/state'
+        - $ref: '#/components/parameters/specialty'
+        - $ref: '#/components/parameters/q'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - name: include
+          in: query
+          schema:
+            type: string
+            example: locations,providers
+      responses:
+        '200':
+          description: Page of practices
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Practice'
+        default:
+          $ref: '#/components/responses/Problem'
+  /practices/{practice_id}:
+    get:
+      tags:
+        - Practices & Locations
+      summary: Retrieve a practice
+      operationId: getPractice
+      security:
+        - oauth2:
+            - feeds:practices
+      parameters:
+        - $ref: '#/components/parameters/practice_id'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          description: Practice
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Practice'
+        '304':
+          description: Not modified
+        default:
+          $ref: '#/components/responses/Problem'
+  /practices/{practice_id}/locations:
+    get:
+      tags:
+        - Practices & Locations
+      summary: Locations for a practice
+      operationId: listPracticeLocations
+      security:
+        - oauth2:
+            - feeds:practices
+      parameters:
+        - $ref: '#/components/parameters/practice_id'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/status'
+      responses:
+        '200':
+          $ref: '#/components/responses/LocationList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /practices/{practice_id}/providers:
+    get:
+      tags:
+        - Providers
+      summary: Providers employed by a practice
+      operationId: listPracticeProviders
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/practice_id'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/status'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProviderList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /locations:
+    get:
+      tags:
+        - Practices & Locations
+      summary: List locations
+      operationId: listLocations
+      security:
+        - oauth2:
+            - feeds:practices
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/near'
+        - $ref: '#/components/parameters/radius_mi'
+        - $ref: '#/components/parameters/state'
+        - name: postal_code
+          in: query
+          schema:
+            type: string
+            pattern: ^\d{5}(-\d{4})?$
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/LocationType'
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          $ref: '#/components/responses/LocationList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /locations/{location_id}:
+    get:
+      tags:
+        - Practices & Locations
+      summary: Retrieve a location
+      operationId: getLocation
+      security:
+        - oauth2:
+            - feeds:practices
+      parameters:
+        - $ref: '#/components/parameters/location_id'
+      responses:
+        '200':
+          description: Location
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        default:
+          $ref: '#/components/responses/Problem'
+  /locations/{location_id}/providers:
+    get:
+      tags:
+        - Providers
+      summary: Providers at a location
+      operationId: listLocationProviders
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/location_id'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProviderList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /providers:
+    get:
+      tags:
+        - Providers
+      summary: List providers
+      operationId: listProviders
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/status'
+        - $ref: '#/components/parameters/near'
+        - $ref: '#/components/parameters/radius_mi'
+        - $ref: '#/components/parameters/state'
+        - $ref: '#/components/parameters/specialty'
+        - $ref: '#/components/parameters/q'
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+        - name: provider_type
+          in: query
+          description: Provider type code, e.g. MD, DO, PA, NP, DPM, PT
+          schema:
+            type: string
+        - name: credential
+          in: query
+          description: Add-on credential code, e.g. FAAOS
+          schema:
+            type: string
+        - name: accepting_new_patients
+          in: query
+          schema:
+            type: boolean
+        - name: language
+          in: query
+          description: ISO 639-1
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 2
+        - name: include
+          in: query
+          schema:
+            type: string
+            example: locations,practice
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProviderList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /providers/{provider_id}:
+    get:
+      tags:
+        - Providers
+      summary: Retrieve a provider
+      operationId: getProvider
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/provider_id'
+      responses:
+        '200':
+          description: Provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Provider'
+        default:
+          $ref: '#/components/responses/Problem'
+  /providers/{provider_id}/locations:
+    get:
+      tags:
+        - Providers
+      summary: Locations where a provider practices
+      operationId: listProviderLocations
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/provider_id'
+      responses:
+        '200':
+          $ref: '#/components/responses/LocationList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /provider-types:
+    get:
+      tags:
+        - Providers
+      summary: Reference list of provider types (base credentials)
+      operationId: listProviderTypes
+      security:
+        - oauth2:
+            - feeds:providers
+      responses:
+        '200':
+          description: Provider types
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ProviderType'
+  /credentials:
+    get:
+      tags:
+        - Providers
+      summary: Reference list of canonical credentials
+      operationId: listCredentials
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum:
+              - base
+              - add_on
+      responses:
+        '200':
+          description: Credentials
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CredentialDefinition'
+  /procedures:
+    get:
+      tags:
+        - Procedures
+      summary: List procedures
+      operationId: listProcedures
+      security:
+        - oauth2:
+            - feeds:procedures
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/specialty'
+        - $ref: '#/components/parameters/q'
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/ProcedureCategory'
+        - name: body_part
+          in: query
+          schema:
+            $ref: '#/components/schemas/BodyPart'
+        - name: setting
+          in: query
+          schema:
+            $ref: '#/components/schemas/Setting'
+        - name: cpt
+          in: query
+          schema:
+            type: string
+            pattern: ^\d{5}$
+        - $ref: '#/components/parameters/fields'
+      responses:
+        '200':
+          description: Procedures
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: max-age=3600
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Procedure'
+        default:
+          $ref: '#/components/responses/Problem'
+  /procedures/{procedure_id}:
+    get:
+      tags:
+        - Procedures
+      summary: Retrieve a procedure
+      operationId: getProcedure
+      security:
+        - oauth2:
+            - feeds:procedures
+      parameters:
+        - $ref: '#/components/parameters/procedure_id'
+      responses:
+        '200':
+          description: Procedure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Procedure'
+        default:
+          $ref: '#/components/responses/Problem'
+  /procedures/{procedure_id}/bundles:
+    get:
+      tags:
+        - Bundles
+      summary: Bundles that include a procedure
+      operationId: listProcedureBundles
+      security:
+        - oauth2:
+            - feeds:bundles
+      parameters:
+        - $ref: '#/components/parameters/procedure_id'
+      responses:
+        '200':
+          $ref: '#/components/responses/BundleList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /procedures/{procedure_id}/providers:
+    get:
+      tags:
+        - Providers
+      summary: Providers who perform a procedure
+      operationId: listProcedureProviders
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/procedure_id'
+        - $ref: '#/components/parameters/near'
+        - $ref: '#/components/parameters/radius_mi'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProviderList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /specialties:
+    get:
+      tags:
+        - Specialties
+      summary: List specialties
+      operationId: listSpecialties
+      security:
+        - oauth2:
+            - feeds:specialties
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - name: parent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Specialties
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Specialty'
+        default:
+          $ref: '#/components/responses/Problem'
+  /specialties/{specialty_id}:
+    get:
+      tags:
+        - Specialties
+      summary: Retrieve a specialty
+      operationId: getSpecialty
+      security:
+        - oauth2:
+            - feeds:specialties
+      parameters:
+        - $ref: '#/components/parameters/specialty_id'
+      responses:
+        '200':
+          description: Specialty with children
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Specialty'
+        default:
+          $ref: '#/components/responses/Problem'
+  /specialties/{specialty_id}/providers:
+    get:
+      tags:
+        - Providers
+      summary: Providers in a specialty
+      operationId: listSpecialtyProviders
+      security:
+        - oauth2:
+            - feeds:providers
+      parameters:
+        - $ref: '#/components/parameters/specialty_id'
+        - $ref: '#/components/parameters/near'
+        - $ref: '#/components/parameters/radius_mi'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/ProviderList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /bundles:
+    get:
+      tags:
+        - Bundles
+      summary: List bundle definitions
+      operationId: listBundles
+      security:
+        - oauth2:
+            - feeds:bundles
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/specialty'
+        - name: procedure_id
+          in: query
+          schema:
+            type: string
+        - name: body_part
+          in: query
+          schema:
+            $ref: '#/components/schemas/BodyPart'
+        - name: setting
+          in: query
+          schema:
+            $ref: '#/components/schemas/Setting'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - active
+              - draft
+              - retired
+              - all
+            default: active
+        - name: include
+          in: query
+          schema:
+            type: string
+            example: procedures
+      responses:
+        '200':
+          $ref: '#/components/responses/BundleList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /bundles/{bundle_id}:
+    get:
+      tags:
+        - Bundles
+      summary: Retrieve a bundle definition
+      operationId: getBundle
+      security:
+        - oauth2:
+            - feeds:bundles
+      parameters:
+        - $ref: '#/components/parameters/bundle_id'
+        - name: version
+          in: query
+          description: Retrieve a prior definition version
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+        default:
+          $ref: '#/components/responses/Problem'
+  /bundles/{bundle_id}/offerings:
+    get:
+      tags:
+        - Bundles
+      summary: Practices and locations offering a bundle
+      operationId: listBundleOfferings
+      security:
+        - oauth2:
+            - feeds:bundles
+      parameters:
+        - $ref: '#/components/parameters/bundle_id'
+        - $ref: '#/components/parameters/near'
+        - $ref: '#/components/parameters/radius_mi'
+        - $ref: '#/components/parameters/state'
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Offerings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Offering'
+        default:
+          $ref: '#/components/responses/Problem'
+  /bundles/{bundle_id}/pricing:
+    get:
+      tags:
+        - Bundles
+      summary: Contracted prices for a bundle
+      operationId: listBundlePricing
+      security:
+        - oauth2:
+            - bundles:pricing
+      parameters:
+        - $ref: '#/components/parameters/bundle_id'
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/effective_on'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/PriceList'
+        '403':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /pricing:
+    get:
+      tags:
+        - Bundles
+      summary: Flat pricing feed for bulk sync
+      operationId: listPricing
+      security:
+        - oauth2:
+            - bundles:pricing
+      parameters:
+        - $ref: '#/components/parameters/updated_since'
+        - $ref: '#/components/parameters/effective_on'
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          $ref: '#/components/responses/PriceList'
+        default:
+          $ref: '#/components/responses/Problem'
+  /changes:
+    get:
+      tags:
+        - Sync
+      summary: Ordered change log across feeds
+      operationId: listChanges
+      security:
+        - oauth2:
+            - feeds:changes
+      parameters:
+        - name: since
+          in: query
+          description: A `sequence` value or ISO 8601 timestamp
+          schema:
+            type: string
+        - name: feeds
+          in: query
+          description: Comma-separated feed names
+          schema:
+            type: string
+            example: providers,practices
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Change events (retained 90 days)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ChangeEvent'
+        default:
+          $ref: '#/components/responses/Problem'
+  /snapshots:
+    get:
+      tags:
+        - Sync
+      summary: List available nightly snapshots
+      operationId: listSnapshots
+      security:
+        - oauth2:
+            - feeds:changes
+      responses:
+        '200':
+          description: Snapshots (7-day retention)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Snapshot'
+  /snapshots/{feed}/latest:
+    get:
+      tags:
+        - Sync
+      summary: Latest snapshot for a feed
+      operationId: getLatestSnapshot
+      security:
+        - oauth2:
+            - feeds:changes
+      parameters:
+        - name: feed
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - practices
+              - locations
+              - providers
+              - procedures
+              - specialties
+              - bundles
+              - offerings
+              - pricing
+      responses:
+        '200':
+          description: >-
+            Snapshot descriptor with pre-signed download URL (15-minute
+            validity)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals:
+    post:
+      tags:
+        - Referrals
+      summary: Create a referral
+      operationId: createReferral
+      security:
+        - oauth2:
+            - referrals:write
+      parameters:
+        - $ref: '#/components/parameters/idempotency_key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferralCreate'
+      responses:
+        '200':
+          description: Idempotent replay of a prior create
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referral'
+        '201':
+          description: Created; includes first status event and thread_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referral'
+        default:
+          $ref: '#/components/responses/Problem'
+    get:
+      tags:
+        - Referrals
+      summary: List own referrals
+      operationId: listReferrals
+      security:
+        - oauth2:
+            - referrals:read
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/updated_since'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReferralStatus'
+        - name: member_external_id
+          in: query
+          description: Partner's opaque member ID (not a name)
+          schema:
+            type: string
+        - name: practice_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Page of referrals (tenant-scoped)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Referral'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}:
+    get:
+      tags:
+        - Referrals
+      summary: Retrieve a referral
+      operationId: getReferral
+      security:
+        - oauth2:
+            - referrals:read
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+      responses:
+        '200':
+          description: Referral with event history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referral'
+        '404':
+          $ref: '#/components/responses/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags:
+        - Referrals
+      summary: Amend a referral (only while received or needs_info)
+      operationId: patchReferral
+      security:
+        - oauth2:
+            - referrals:write
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/idempotency_key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferralPatch'
+      responses:
+        '200':
+          description: Updated referral
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referral'
+        '409':
+          description: Referral is not in an amendable status
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/events:
+    get:
+      tags:
+        - Referrals
+      summary: Status event log
+      operationId: listReferralEvents
+      security:
+        - oauth2:
+            - referrals:read
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+      responses:
+        '200':
+          description: Events, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReferralEvent'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/cancel:
+    post:
+      tags:
+        - Referrals
+      summary: Cancel a referral
+      operationId: cancelReferral
+      security:
+        - oauth2:
+            - referrals:write
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/idempotency_key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: No PHI
+      responses:
+        '200':
+          description: Referral now cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Referral'
+        '409':
+          description: Referral already terminal
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/messages:
+    get:
+      tags:
+        - Messaging
+      summary: List messages on a referral thread
+      operationId: listMessages
+      security:
+        - oauth2:
+            - messages:read
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - name: since
+          in: query
+          description: Cursor or message id; returns messages after it
+          schema:
+            type: string
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Messages, chronological; marks them read for the caller
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      thread:
+                        $ref: '#/components/schemas/Thread'
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Message'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+        - Messaging
+      summary: Post a message
+      operationId: createMessage
+      security:
+        - oauth2:
+            - messages:write
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/idempotency_key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - body
+              properties:
+                body:
+                  type: string
+                  maxLength: 4000
+                attachment_ids:
+                  type: array
+                  items:
+                    type: string
+                    pattern: ^att_
+                  description: Must already be `ready`
+                in_reply_to:
+                  type:
+                    - string
+                    - 'null'
+                  pattern: ^msg_
+      responses:
+        '201':
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '409':
+          description: Thread is closed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /inbox:
+    get:
+      tags:
+        - Messaging
+      summary: Threads with unread messages for this organization
+      operationId: getInbox
+      security:
+        - oauth2:
+            - messages:read
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Threads, newest activity first
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Thread'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/attachments:
+    post:
+      tags:
+        - Messaging
+      summary: Begin an attachment upload (step 1 of 2)
+      operationId: createAttachment
+      security:
+        - oauth2:
+            - attachments:write
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/idempotency_key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - filename
+                - content_type
+                - size_bytes
+              properties:
+                filename:
+                  type: string
+                  maxLength: 255
+                content_type:
+                  type: string
+                  enum:
+                    - application/pdf
+                    - image/jpeg
+                    - image/png
+                    - image/tiff
+                    - application/dicom
+                    - text/plain
+                    - application/xml
+                size_bytes:
+                  type: integer
+                  minimum: 1
+                  maximum: 26214400
+      responses:
+        '201':
+          description: Upload target
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attachment:
+                    $ref: '#/components/schemas/Attachment'
+                  upload_url:
+                    type: string
+                    format: uri
+                    description: Pre-signed PUT
+                    valid 15 minutes: null
+                  upload_headers:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  expires_at:
+                    type: string
+                    format: date-time
+        '422':
+          description: Type not accepted, size over limit, or attachment count exceeded
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/attachments/{attachment_id}/complete:
+    post:
+      tags:
+        - Messaging
+      summary: Finalize an upload (step 2 of 2)
+      operationId: completeAttachment
+      security:
+        - oauth2:
+            - attachments:write
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/attachment_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sha256
+              properties:
+                sha256:
+                  type: string
+                  pattern: ^[0-9a-f]{64}$
+      responses:
+        '202':
+          description: >-
+            Accepted; status becomes `scanning`, then `ready` or `rejected`
+            (webhook `attachment.ready`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+        default:
+          $ref: '#/components/responses/Problem'
+  /referrals/{referral_id}/attachments/{attachment_id}:
+    get:
+      tags:
+        - Messaging
+      summary: Get a short-lived download URL
+      operationId: getAttachment
+      security:
+        - oauth2:
+            - referrals:read
+      parameters:
+        - $ref: '#/components/parameters/referral_id'
+        - $ref: '#/components/parameters/attachment_id'
+      responses:
+        '200':
+          description: Pre-signed GET, valid 5 minutes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attachment:
+                    $ref: '#/components/schemas/Attachment'
+                  download_url:
+                    type: string
+                    format: uri
+                  expires_at:
+                    type: string
+                    format: date-time
+        default:
+          $ref: '#/components/responses/Problem'
+webhooks:
+  referral.status_changed:
+    post:
+      summary: A referral gained a new status event
+      description: >-
+        Signed with OVN-Signature header (t=<unix>,v1=<hmac-sha256 of t.body>);
+        also carries OVN-Event and OVN-Delivery-Id. Payload carries IDs only,
+        never PHI.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum:
+                    - referral.status_changed
+                referral_id:
+                  type: string
+                partner_reference:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/ReferralStatus'
+                event_id:
+                  type: string
+                occurred_at:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Acknowledged
+  message.created:
+    post:
+      summary: OVN or a practice posted a message
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum:
+                    - message.created
+                referral_id:
+                  type: string
+                thread_id:
+                  type: string
+                message_id:
+                  type: string
+                sent_at:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Acknowledged
+  attachment.ready:
+    post:
+      summary: An attachment passed or failed scanning
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event:
+                  type: string
+                  enum:
+                    - attachment.ready
+                referral_id:
+                  type: string
+                attachment_id:
+                  type: string
+                status:
+                  type: string
+                  enum:
+                    - ready
+                    - rejected
+      responses:
+        '200':
+          description: Acknowledged
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: >-
+        OAuth 2.0 client credentials — primary method for server-to-server
+        integrations. Directory tier tokens expire after 60 minutes;
+        referral/PHI tier tokens expire after 15 minutes.
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.ovnapp.com/oauth/token
+          scopes:
+            feeds:practices: Practices and locations
+            feeds:providers: Providers, credentials, location assignments
+            feeds:procedures: Procedure catalog
+            feeds:specialties: Specialty taxonomy
+            feeds:bundles: Bundle definitions and offerings (no prices)
+            bundles:pricing: Contracted bundle prices
+            feeds:changes: Change feed and snapshots
+            referrals:write: Create, amend, cancel referrals (PHI; BAA required)
+            referrals:read: Read own referrals and events (PHI; BAA required)
+            messages:write: Post messages on own referral threads (PHI; BAA required)
+            messages:read: Read messages and inbox (PHI; BAA required)
+            attachments:write: Upload attachments to own referrals (PHI; BAA required)
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: >-
+        Short-lived bearer token issued by OVN. Suitable for directory tier.
+        PHI/referral tier requires OAuth 2.0 or equivalent secure method — bare
+        tokens are not accepted for referrals:*, messages:*, or attachments:*
+        scopes.
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-OVN-API-Key
+      description: >-
+        Long-lived API key for directory-tier read access. Not accepted for
+        PHI/referral tier scopes (referrals:*, messages:*, attachments:*).
+        Issued per registered client through the OVN developer portal.
+  parameters:
+    idempotency_key:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        UUID chosen by the caller; replays within 24 hours return the original
+        response
+      schema:
+        type: string
+        format: uuid
+    referral_id:
+      name: referral_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^ref_
+    attachment_id:
+      name: attachment_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^att_
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from a prior response's `pagination.next_cursor`
+      schema:
+        type: string
+    updated_since:
+      name: updated_since
+      in: query
+      description: >-
+        Return records modified at or after this time, including `removed`
+        records
+      schema:
+        type: string
+        format: date-time
+    status:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum:
+          - active
+          - inactive
+          - removed
+          - all
+        default: active
+    state:
+      name: state
+      in: query
+      description: USPS two-letter state code
+      schema:
+        type: string
+        pattern: ^[A-Z]{2}$
+    specialty:
+      name: specialty
+      in: query
+      description: Comma-separated specialty IDs
+      schema:
+        type: string
+    q:
+      name: q
+      in: query
+      description: Free-text search across name fields (min 2 characters)
+      schema:
+        type: string
+        minLength: 2
+    sort:
+      name: sort
+      in: query
+      description: Field name; prefix with `-` for descending
+      schema:
+        type: string
+        default: updated_at,id
+    fields:
+      name: fields
+      in: query
+      description: Comma-separated sparse fieldset
+      schema:
+        type: string
+    near:
+      name: near
+      in: query
+      description: '`lat,lng` in decimal degrees'
+      schema:
+        type: string
+        pattern: ^-?\d+(\.\d+)?,-?\d+(\.\d+)?$
+        example: 41.885,-87.784
+    radius_mi:
+      name: radius_mi
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 25
+    effective_on:
+      name: effective_on
+      in: query
+      description: Return prices effective on this date (default today)
+      schema:
+        type: string
+        format: date
+    practice_id:
+      name: practice_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^prc_
+    location_id:
+      name: location_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^loc_
+    provider_id:
+      name: provider_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^prv_
+    procedure_id:
+      name: procedure_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^proc_
+    specialty_id:
+      name: specialty_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^spc_
+    bundle_id:
+      name: bundle_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^bnd_
+  responses:
+    Problem:
+      description: Error (RFC 9457)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    LocationList:
+      description: Page of locations
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ListEnvelope'
+              - properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+    ProviderList:
+      description: Page of providers
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ListEnvelope'
+              - properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Provider'
+    BundleList:
+      description: Page of bundles
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ListEnvelope'
+              - properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bundle'
+    PriceList:
+      description: Page of price records
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ListEnvelope'
+              - properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Price'
+  schemas:
+    ListEnvelope:
+      type: object
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+        pagination:
+          type: object
+          required:
+            - limit
+            - has_more
+          properties:
+            limit:
+              type: integer
+            next_cursor:
+              type:
+                - string
+                - 'null'
+            has_more:
+              type: boolean
+    Problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        request_id:
+          type: string
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              parameter:
+                type: string
+              reason:
+                type: string
+    Timestamps:
+      type: object
+      required:
+        - created_at
+        - updated_at
+      properties:
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    RecordStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - removed
+    BodyPart:
+      type: string
+      enum:
+        - spine
+        - shoulder
+        - elbow
+        - hand_wrist
+        - hip
+        - knee
+        - foot_ankle
+        - pediatric
+        - trauma
+        - oncology
+    Setting:
+      type: string
+      enum:
+        - office
+        - ambulatory_surgery_center
+        - hospital_outpatient
+        - inpatient
+    LocationType:
+      type: string
+      enum:
+        - clinic
+        - ambulatory_surgery_center
+        - imaging_center
+        - physical_therapy
+        - urgent_care
+        - hospital_outpatient
+        - administrative
+    ProcedureCategory:
+      type: string
+      enum:
+        - surgery
+        - injection
+        - imaging
+        - therapy
+        - evaluation
+        - durable_medical_equipment
+        - bracing_casting
+    Address:
+      type: object
+      required:
+        - line1
+        - city
+        - state
+        - postal_code
+      properties:
+        line1:
+          type: string
+        line2:
+          type:
+            - string
+            - 'null'
+        city:
+          type: string
+        state:
+          type: string
+          pattern: ^[A-Z]{2}$
+        postal_code:
+          type: string
+          pattern: ^\d{5}(-\d{4})?$
+        county:
+          type:
+            - string
+            - 'null'
+    Geo:
+      type: object
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+    Hours:
+      type: object
+      required:
+        - day
+        - open
+        - close
+      properties:
+        day:
+          type: string
+          enum:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+        open:
+          type: string
+          pattern: ^\d{2}:\d{2}$
+        close:
+          type: string
+          pattern: ^\d{2}:\d{2}$
+    Practice:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - name
+            - status
+            - member_since
+            - accepting_new_patients
+            - specialty_ids
+            - location_count
+            - provider_count
+          properties:
+            id:
+              type: string
+              pattern: ^prc_
+            name:
+              type: string
+            legal_name:
+              type:
+                - string
+                - 'null'
+            npi:
+              type:
+                - string
+                - 'null'
+              pattern: ^\d{10}$
+              description: Type 2 organizational NPI
+            website:
+              type:
+                - string
+                - 'null'
+              format: uri
+            phone:
+              type:
+                - string
+                - 'null'
+              description: E.164
+            status:
+              $ref: '#/components/schemas/RecordStatus'
+            member_since:
+              type: string
+              format: date
+            accepting_new_patients:
+              type: boolean
+            specialty_ids:
+              type: array
+              items:
+                type: string
+            location_count:
+              type: integer
+            provider_count:
+              type: integer
+            service_area_states:
+              type: array
+              items:
+                type: string
+            locations:
+              type: array
+              items:
+                $ref: '#/components/schemas/Location'
+              description: Only with include=locations
+            providers:
+              type: array
+              items:
+                $ref: '#/components/schemas/Provider'
+              description: Only with include=providers
+    Location:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - practice_id
+            - name
+            - type
+            - address
+            - geo
+            - timezone
+            - status
+          properties:
+            id:
+              type: string
+              pattern: ^loc_
+            practice_id:
+              type: string
+            name:
+              type: string
+            type:
+              $ref: '#/components/schemas/LocationType'
+            npi:
+              type:
+                - string
+                - 'null'
+              pattern: ^\d{10}$
+            address:
+              $ref: '#/components/schemas/Address'
+            geo:
+              $ref: '#/components/schemas/Geo'
+            phone:
+              type:
+                - string
+                - 'null'
+            fax:
+              type:
+                - string
+                - 'null'
+            hours:
+              type: array
+              items:
+                $ref: '#/components/schemas/Hours'
+            timezone:
+              type: string
+              example: America/Chicago
+            services:
+              type: array
+              items:
+                type: string
+                enum:
+                  - xray
+                  - mri
+                  - ct
+                  - ultrasound
+                  - dexa
+                  - physical_therapy
+                  - occupational_therapy
+                  - casting
+                  - injections
+                  - surgery
+                  - walk_in
+                  - telehealth
+            accessibility:
+              type: object
+              properties:
+                wheelchair_accessible:
+                  type: boolean
+                parking:
+                  type: string
+                  enum:
+                    - lot
+                    - garage
+                    - street
+                    - none
+                public_transit:
+                  type: boolean
+            status:
+              $ref: '#/components/schemas/RecordStatus'
+            distance_mi:
+              type: number
+              description: Present only when `near` was supplied
+    ProviderType:
+      type: object
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+          example: MD
+        name:
+          type: string
+          example: Doctor of Medicine
+    CredentialDefinition:
+      type: object
+      required:
+        - code
+        - name
+        - kind
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - base
+            - add_on
+        issued_by:
+          type:
+            - string
+            - 'null'
+        stacks_on:
+          type: array
+          items:
+            type: string
+          description: Provider type codes this add-on may attach to
+    Credential:
+      type: object
+      required:
+        - code
+        - name
+        - kind
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - add_on
+        issued_by:
+          type:
+            - string
+            - 'null'
+        verified:
+          type: boolean
+    Provider:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - practice_id
+            - npi
+            - name
+            - display_name
+            - provider_type
+            - credentials
+            - specialty_ids
+            - locations
+            - accepting_new_patients
+            - credentialing
+            - status
+          properties:
+            id:
+              type: string
+              pattern: ^prv_
+            practice_id:
+              type: string
+            npi:
+              type: string
+              pattern: ^\d{10}$
+              description: Type 1 individual NPI
+            name:
+              type: object
+              required:
+                - first
+                - last
+              properties:
+                first:
+                  type: string
+                middle:
+                  type:
+                    - string
+                    - 'null'
+                last:
+                  type: string
+                suffix:
+                  type:
+                    - string
+                    - 'null'
+            display_name:
+              type: string
+            provider_type:
+              $ref: '#/components/schemas/ProviderType'
+            credentials:
+              type: array
+              items:
+                $ref: '#/components/schemas/Credential'
+            board_certifications:
+              type: array
+              items:
+                type: object
+                properties:
+                  board:
+                    type: string
+                  specialty:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                      - certified
+                      - eligible
+                      - expired
+                  expires:
+                    type:
+                      - string
+                      - 'null'
+                    format: date
+            specialty_ids:
+              type: array
+              items:
+                type: string
+            focus_areas:
+              type: array
+              items:
+                $ref: '#/components/schemas/BodyPart'
+            procedure_ids:
+              type: array
+              items:
+                type: string
+            locations:
+              type: array
+              items:
+                type: object
+                required:
+                  - location_id
+                  - is_primary
+                properties:
+                  location_id:
+                    type: string
+                  is_primary:
+                    type: boolean
+                  days:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - mon
+                        - tue
+                        - wed
+                        - thu
+                        - fri
+                        - sat
+                        - sun
+            accepting_new_patients:
+              type: boolean
+            telehealth:
+              type: boolean
+            languages:
+              type: array
+              items:
+                type: string
+                minLength: 2
+                maxLength: 2
+            gender:
+              type:
+                - string
+                - 'null'
+              enum:
+                - female
+                - male
+                - nonbinary
+                - undisclosed
+                - null
+            education:
+              type: array
+              items:
+                type: object
+                properties:
+                  kind:
+                    type: string
+                    enum:
+                      - medical_school
+                      - residency
+                      - fellowship
+                      - degree
+                  institution:
+                    type: string
+                  year:
+                    type: integer
+            photo_url:
+              type:
+                - string
+                - 'null'
+              format: uri
+            bio:
+              type:
+                - string
+                - 'null'
+              maxLength: 2000
+            credentialing:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - verified
+                    - pending
+                    - expired
+                verified_at:
+                  type:
+                    - string
+                    - 'null'
+                  format: date
+                next_review:
+                  type:
+                    - string
+                    - 'null'
+                  format: date
+            status:
+              $ref: '#/components/schemas/RecordStatus'
+    Procedure:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - name
+            - clinical_name
+            - category
+            - body_parts
+            - codes
+            - settings
+            - specialty_ids
+            - status
+          properties:
+            id:
+              type: string
+              pattern: ^proc_
+            name:
+              type: string
+            clinical_name:
+              type: string
+            description:
+              type: string
+            category:
+              $ref: '#/components/schemas/ProcedureCategory'
+            body_parts:
+              type: array
+              items:
+                $ref: '#/components/schemas/BodyPart'
+            codes:
+              type: array
+              items:
+                type: object
+                required:
+                  - system
+                  - code
+                  - role
+                properties:
+                  system:
+                    type: string
+                    enum:
+                      - CPT
+                      - HCPCS
+                      - ICD-10-PCS
+                  code:
+                    type: string
+                  role:
+                    type: string
+                    enum:
+                      - primary
+                      - commonly_billed_with
+            settings:
+              type: array
+              items:
+                $ref: '#/components/schemas/Setting'
+            specialty_ids:
+              type: array
+              items:
+                type: string
+            prior_auth_common:
+              type: boolean
+            typical_duration_min:
+              type:
+                - integer
+                - 'null'
+            bundle_ids:
+              type: array
+              items:
+                type: string
+            status:
+              type: string
+              enum:
+                - active
+                - retired
+    Specialty:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - name
+            - parent_id
+            - taxonomy_codes
+            - status
+          properties:
+            id:
+              type: string
+              pattern: ^spc_
+            name:
+              type: string
+            parent_id:
+              type:
+                - string
+                - 'null'
+            children:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+            taxonomy_codes:
+              type: array
+              items:
+                type: string
+              description: NUCC codes
+            body_parts:
+              type: array
+              items:
+                $ref: '#/components/schemas/BodyPart'
+            description:
+              type: string
+            provider_count:
+              type: integer
+            status:
+              type: string
+              enum:
+                - active
+                - retired
+    Bundle:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - code
+            - version
+            - name
+            - anchor_procedure_id
+            - setting
+            - episode_window
+            - components
+            - status
+          properties:
+            id:
+              type: string
+              pattern: ^bnd_
+            code:
+              type: string
+              example: OVN-TKA-ASC
+            version:
+              type: integer
+              minimum: 1
+            name:
+              type: string
+            description:
+              type: string
+            anchor_procedure_id:
+              type: string
+            setting:
+              $ref: '#/components/schemas/Setting'
+            episode_window:
+              type: object
+              required:
+                - pre_days
+                - post_days
+              properties:
+                pre_days:
+                  type: integer
+                  minimum: 0
+                post_days:
+                  type: integer
+                  minimum: 0
+            components:
+              type: array
+              items:
+                type: object
+                required:
+                  - kind
+                  - quantity
+                  - unit
+                properties:
+                  kind:
+                    type: string
+                    enum:
+                      - procedure
+                      - service
+                  procedure_id:
+                    type:
+                      - string
+                      - 'null'
+                  service:
+                    type:
+                      - string
+                      - 'null'
+                    enum:
+                      - anesthesia
+                      - facility
+                      - implant
+                      - imaging
+                      - labs
+                      - pt_visits
+                      - post_op_visits
+                      - dme
+                      - null
+                  quantity:
+                    type: integer
+                    minimum: 1
+                  unit:
+                    type: string
+                    enum:
+                      - procedure
+                      - case
+                      - each
+                      - study
+                      - visit
+                  notes:
+                    type:
+                      - string
+                      - 'null'
+            exclusions:
+              type: array
+              items:
+                type: string
+            warranty:
+              type:
+                - object
+                - 'null'
+              properties:
+                days:
+                  type: integer
+                covers:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - readmission
+                      - infection
+                      - revision
+                      - complication
+            specialty_ids:
+              type: array
+              items:
+                type: string
+            body_parts:
+              type: array
+              items:
+                $ref: '#/components/schemas/BodyPart'
+            offering_count:
+              type: integer
+            status:
+              type: string
+              enum:
+                - active
+                - draft
+                - retired
+            effective_from:
+              type:
+                - string
+                - 'null'
+              format: date
+            effective_to:
+              type:
+                - string
+                - 'null'
+              format: date
+            procedures:
+              type: array
+              items:
+                $ref: '#/components/schemas/Procedure'
+              description: Only with include=procedures
+    Offering:
+      type: object
+      required:
+        - id
+        - bundle_id
+        - practice_id
+        - location_id
+        - status
+        - updated_at
+      properties:
+        id:
+          type: string
+          pattern: ^off_
+        bundle_id:
+          type: string
+        practice_id:
+          type: string
+        location_id:
+          type:
+            - string
+            - 'null'
+          description: null means practice-wide
+        provider_ids:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum:
+            - active
+            - paused
+            - removed
+        distance_mi:
+          type: number
+        updated_at:
+          type: string
+          format: date-time
+    Price:
+      allOf:
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - offering_id
+            - bundle_id
+            - bundle_version
+            - price_cents
+            - currency
+            - price_basis
+            - effective_from
+          properties:
+            id:
+              type: string
+              pattern: ^prc_px_
+            offering_id:
+              type: string
+            bundle_id:
+              type: string
+            bundle_version:
+              type: integer
+            price_cents:
+              type: integer
+              minimum: 0
+              description: Integer cents; never a float
+            currency:
+              type: string
+              enum:
+                - USD
+            price_basis:
+              type: string
+              enum:
+                - all_in
+                - professional_only
+                - facility_only
+            component_prices:
+              type:
+                - array
+                - 'null'
+              items:
+                type: object
+                properties:
+                  component_index:
+                    type: integer
+                  price_cents:
+                    type: integer
+            customer_group:
+              type:
+                - string
+                - 'null'
+              description: null = network standard rate
+            effective_from:
+              type: string
+              format: date
+            effective_to:
+              type:
+                - string
+                - 'null'
+              format: date
+    ChangeEvent:
+      type: object
+      required:
+        - sequence
+        - occurred_at
+        - feed
+        - object_type
+        - object_id
+        - action
+      properties:
+        sequence:
+          type: integer
+        occurred_at:
+          type: string
+          format: date-time
+        feed:
+          type: string
+          enum:
+            - practices
+            - locations
+            - providers
+            - procedures
+            - specialties
+            - bundles
+            - offerings
+            - pricing
+        object_type:
+          type: string
+        object_id:
+          type: string
+        action:
+          type: string
+          enum:
+            - created
+            - updated
+            - removed
+        changed_fields:
+          type: array
+          items:
+            type: string
+    Snapshot:
+      type: object
+      required:
+        - feed
+        - generated_at
+        - row_count
+        - sha256
+        - change_sequence
+      properties:
+        feed:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        row_count:
+          type: integer
+        sha256:
+          type: string
+        change_sequence:
+          type: integer
+          description: Resume /changes from here
+        download_url:
+          type: string
+          format: uri
+          description: Pre-signed; valid 15 minutes
+        expires_at:
+          type: string
+          format: date-time
+        format:
+          type: string
+          enum:
+            - ndjson+gzip
+    ReferralStatus:
+      type: string
+      enum:
+        - received
+        - under_review
+        - needs_info
+        - accepted
+        - declined
+        - scheduled
+        - completed
+        - cancelled
+    Member:
+      type: object
+      description: PHI. Never placed in query strings, logs, errors or webhook payloads.
+      required:
+        - external_id
+        - first_name
+        - last_name
+        - date_of_birth
+      properties:
+        external_id:
+          type: string
+          maxLength: 64
+          description: Partner's opaque member ID
+        first_name:
+          type: string
+        last_name:
+          type: string
+        middle_name:
+          type:
+            - string
+            - 'null'
+        date_of_birth:
+          type: string
+          format: date
+        sex:
+          type:
+            - string
+            - 'null'
+          enum:
+            - female
+            - male
+            - other
+            - unknown
+            - null
+        phone:
+          type:
+            - string
+            - 'null'
+          description: E.164
+        email:
+          type:
+            - string
+            - 'null'
+          format: email
+        address:
+          anyOf:
+            - $ref: '#/components/schemas/Address'
+            - type: 'null'
+        preferred_language:
+          type:
+            - string
+            - 'null'
+          description: ISO 639-1
+        preferred_contact:
+          type:
+            - string
+            - 'null'
+          enum:
+            - phone
+            - email
+            - sms
+            - null
+    Coverage:
+      type: object
+      description: PHI.
+      required:
+        - customer_group
+      properties:
+        customer_group:
+          type: string
+          description: Must be one the calling org is entitled to
+        plan_name:
+          type:
+            - string
+            - 'null'
+        member_id:
+          type:
+            - string
+            - 'null'
+        group_number:
+          type:
+            - string
+            - 'null'
+        subscriber_relationship:
+          type:
+            - string
+            - 'null'
+          enum:
+            - self
+            - spouse
+            - child
+            - other
+            - null
+        eligibility_verified_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    ReferralRequest:
+      type: object
+      required:
+        - kind
+      properties:
+        kind:
+          type: string
+          enum:
+            - bundle
+            - procedure
+            - evaluation
+        bundle_id:
+          type:
+            - string
+            - 'null'
+          pattern: ^bnd_
+        procedure_id:
+          type:
+            - string
+            - 'null'
+          pattern: ^proc_
+        specialty_id:
+          type:
+            - string
+            - 'null'
+          pattern: ^spc_
+        preferred_practice_id:
+          type:
+            - string
+            - 'null'
+        preferred_location_id:
+          type:
+            - string
+            - 'null'
+        preferred_provider_id:
+          type:
+            - string
+            - 'null'
+        body_part:
+          anyOf:
+            - $ref: '#/components/schemas/BodyPart'
+            - type: 'null'
+        urgency:
+          type: string
+          enum:
+            - routine
+            - urgent
+          default: routine
+        earliest_date:
+          type:
+            - string
+            - 'null'
+          format: date
+        reason:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+          description: PHI free text
+    ReferringContact:
+      type: object
+      required:
+        - contact_name
+      properties:
+        organization:
+          type: string
+          readOnly: true
+          description: From the token
+        contact_name:
+          type: string
+        contact_phone:
+          type:
+            - string
+            - 'null'
+        contact_email:
+          type:
+            - string
+            - 'null'
+          format: email
+    ReferralCreate:
+      type: object
+      required:
+        - member
+        - coverage
+        - request
+        - referring
+      properties:
+        partner_reference:
+          type:
+            - string
+            - 'null'
+          maxLength: 64
+        member:
+          $ref: '#/components/schemas/Member'
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        request:
+          $ref: '#/components/schemas/ReferralRequest'
+        referring:
+          $ref: '#/components/schemas/ReferringContact'
+        notes:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+    ReferralPatch:
+      type: object
+      description: Only these fields; only while status is received or needs_info
+      properties:
+        member:
+          $ref: '#/components/schemas/Member'
+        coverage:
+          $ref: '#/components/schemas/Coverage'
+        request:
+          $ref: '#/components/schemas/ReferralRequest'
+        notes:
+          type:
+            - string
+            - 'null'
+          maxLength: 2000
+    ReferralEvent:
+      type: object
+      required:
+        - id
+        - status
+        - occurred_at
+        - actor
+      properties:
+        id:
+          type: string
+          pattern: ^evt_
+        status:
+          $ref: '#/components/schemas/ReferralStatus'
+        occurred_at:
+          type: string
+          format: date-time
+        actor:
+          type: string
+          enum:
+            - partner
+            - ovn
+            - practice
+        reason:
+          type:
+            - string
+            - 'null'
+          description: No PHI
+    Referral:
+      allOf:
+        - $ref: '#/components/schemas/ReferralCreate'
+        - $ref: '#/components/schemas/Timestamps'
+        - type: object
+          required:
+            - id
+            - status
+            - events
+            - thread_id
+          properties:
+            id:
+              type: string
+              pattern: ^ref_
+            status:
+              $ref: '#/components/schemas/ReferralStatus'
+            attachments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Attachment'
+            assigned:
+              type:
+                - object
+                - 'null'
+              properties:
+                practice_id:
+                  type: string
+                location_id:
+                  type:
+                    - string
+                    - 'null'
+                provider_id:
+                  type:
+                    - string
+                    - 'null'
+                ovn_contact:
+                  type:
+                    - string
+                    - 'null'
+            scheduled:
+              type:
+                - object
+                - 'null'
+              description: PHI
+              properties:
+                appointment_at:
+                  type: string
+                  format: date-time
+                location_id:
+                  type: string
+                provider_id:
+                  type:
+                    - string
+                    - 'null'
+                instructions:
+                  type:
+                    - string
+                    - 'null'
+            events:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReferralEvent'
+            thread_id:
+              type: string
+              pattern: ^thr_
+    Thread:
+      type: object
+      required:
+        - id
+        - referral_id
+        - status
+        - participants
+      properties:
+        id:
+          type: string
+          pattern: ^thr_
+        referral_id:
+          type: string
+        participants:
+          type: array
+          items:
+            type: string
+            enum:
+              - partner
+              - ovn
+              - practice
+        status:
+          type: string
+          enum:
+            - open
+            - closed
+        last_message_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        unread_count:
+          type: integer
+          description: For the caller
+    Message:
+      type: object
+      required:
+        - id
+        - thread_id
+        - author
+        - body
+        - sent_at
+      properties:
+        id:
+          type: string
+          pattern: ^msg_
+        thread_id:
+          type: string
+        author:
+          type: object
+          properties:
+            role:
+              type: string
+              enum:
+                - partner
+                - ovn
+                - practice
+            display_name:
+              type: string
+        body:
+          type: string
+          maxLength: 4000
+          description: PHI
+        attachment_ids:
+          type: array
+          items:
+            type: string
+        in_reply_to:
+          type:
+            - string
+            - 'null'
+        sent_at:
+          type: string
+          format: date-time
+        read_at:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    Attachment:
+      type: object
+      required:
+        - id
+        - referral_id
+        - filename
+        - content_type
+        - size_bytes
+        - status
+      properties:
+        id:
+          type: string
+          pattern: ^att_
+        referral_id:
+          type: string
+        filename:
+          type: string
+        content_type:
+          type: string
+        size_bytes:
+          type: integer
+        sha256:
+          type:
+            - string
+            - 'null'
+        status:
+          type: string
+          enum:
+            - pending_upload
+            - scanning
+            - ready
+            - rejected
+        rejection_reason:
+          type:
+            - string
+            - 'null'
+        uploaded_by:
+          type: string
+          enum:
+            - partner
+            - ovn
+            - practice
+        created_at:
+          type: string
+          format: date-time
