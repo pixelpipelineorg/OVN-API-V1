@@ -1,6 +1,6 @@
 ---
 api:
   file: ovn-api-v1.openapi.yaml
-  operationId: listReferralEvents
+  operationId: registerWebhook
 hidden: false
 ---

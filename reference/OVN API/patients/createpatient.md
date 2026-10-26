@@ -1,6 +1,6 @@
 ---
 api:
   file: ovn-api-v1.openapi.yaml
-  operationId: completeAttachment
+  operationId: createPatient
 hidden: false
 ---
